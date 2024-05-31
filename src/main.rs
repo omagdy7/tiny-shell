@@ -16,7 +16,7 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
     }
 }
 
-const builtins: [&str; 3] = ["echo", "exit", "type"];
+const BUILTINS: [&str; 3] = ["echo", "exit", "type"];
 
 fn eval(command: &str) {
     let v = command.split(' ').collect::<Vec<&str>>();
@@ -34,8 +34,11 @@ fn eval(command: &str) {
                 print!("{}", line_to_print);
             }
             "type" => {
-                if builtins.contains(&cmd) {
-                    println!("{} is a shell builtin", cmd);
+                let cmd_to_check = args[0].trim_end();
+                if BUILTINS.contains(&cmd_to_check) {
+                    println!("{} is a shell builtin", cmd_to_check);
+                } else {
+                    println!("{} not found", cmd_to_check);
                 }
             }
             _ => {}
