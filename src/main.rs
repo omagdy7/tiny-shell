@@ -30,9 +30,10 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
         if BUILTINS.contains(&cmd) {
             command_type = ShellCommandType::Builtin;
         }
+        let args = if value.len() == 1 { &[] } else { &value[1..] };
         ShellCommand {
             cmd,
-            args: &value[1..],
+            args,
             command_type,
         }
     }
@@ -53,7 +54,9 @@ fn get_executables(paths: &[&str], ctx: &mut Context) -> io::Result<()> {
                     ctx.executbles.insert(file_name, path);
                 }
             }
-            Err(_) => {}
+            Err(err) => {
+                eprintln!("Error: {}", err)
+            }
         }
     }
     Ok(())
@@ -67,8 +70,8 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &Context) {
             exit(exit_num)
         }
         "echo" => {
-            let line_to_print = args.join(" ");
-            print!("{}", line_to_print);
+            let line_to_print = args.join(" ").trim_end().to_owned();
+            println!("{}", line_to_print);
         }
         "type" => {
             let cmd_to_check = args[0].trim_end();
@@ -90,13 +93,14 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &Context) {
 
 fn eval_executable(command: &str, args: &[&str], ctx: &Context) {
     if ctx.executbles.contains_key(command) {
-        let mut cmd = Command::new(command);
+        let full_path_cmd = ctx.executbles[command].to_str().unwrap();
+        let mut cmd = Command::new(full_path_cmd);
         let output = cmd.args(args).output().unwrap();
         // Check if the command was successful
         if output.status.success() {
             // Convert the output to a string and print it
             let stdout = String::from_utf8(output.stdout).expect("Invalid UTF-8 sequence");
-            println!("{}", stdout);
+            print!("{}", stdout);
         } else {
             // If the command failed, print the error
             let stderr = String::from_utf8(output.stderr).expect("Invalid UTF-8 sequence");
@@ -134,10 +138,10 @@ fn main() {
     let mut ctx = Context {
         executbles: HashMap::new(),
     };
-    let path = std::env::var("PATH").unwrap();
+    let path = env!("PATH");
     let paths = path.split(':').collect::<Vec<&str>>();
     let _ = get_executables(&paths, &mut ctx);
-    // dbg!(ctx);
+    // dbg!(&ctx.executbles);
     let stdin = io::stdin();
     loop {
         print!("$ ");
