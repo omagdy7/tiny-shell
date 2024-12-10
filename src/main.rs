@@ -2,16 +2,18 @@
 use std::io::{self, Write};
 use std::{
     collections::HashMap,
-    fs,
+    env, fs,
     path::PathBuf,
     process::{exit, Command},
 };
 
+#[derive(Debug)]
 enum ShellCommandType {
     Builtin,
     Executable,
 }
 
+#[derive(Debug)]
 struct ShellCommand<'a> {
     cmd: &'a str,
     args: &'a [&'a str],
@@ -39,7 +41,7 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
     }
 }
 
-const BUILTINS: [&str; 3] = ["echo", "exit", "type"];
+const BUILTINS: [&str; 4] = ["echo", "exit", "type", "pwd"];
 
 fn get_executables(paths: &[&str], ctx: &mut Context) -> io::Result<()> {
     for path in paths {
@@ -84,9 +86,13 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &Context) {
                     ctx.executbles[cmd_to_check].display()
                 );
             } else {
-                println!("{} not found", cmd_to_check);
+                println!("{}: not found", cmd_to_check);
             }
         }
+        "pwd" => match env::current_dir() {
+            Ok(cur_dir) => println!("{}", cur_dir.display()),
+            Err(err) => println!("ERROR: {err}"),
+        },
         _ => {}
     }
 }
@@ -107,7 +113,7 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) {
             eprintln!("Error:\n{}", stderr);
         }
     } else {
-        println!("{} not found", command);
+        println!("{}: command not found", command);
     }
 }
 
@@ -118,18 +124,14 @@ fn eval(command: &str, ctx: &Context) {
         .map(|cmd| cmd.trim())
         .collect::<Vec<&str>>();
     let shell_cmd = ShellCommand::from(cmd_input.as_slice());
-    if command.split_once(' ').is_some() {
-        let (cmd, args) = (shell_cmd.cmd, shell_cmd.args);
-        match shell_cmd.command_type {
-            Builtin => {
-                eval_builtin(cmd, args, ctx);
-            }
-            Executable => {
-                eval_executable(cmd, args, ctx);
-            }
+    let (cmd, args) = (shell_cmd.cmd, shell_cmd.args);
+    match shell_cmd.command_type {
+        Builtin => {
+            eval_builtin(cmd, args, ctx);
         }
-    } else {
-        println!("{}: command not found", command.trim_end());
+        Executable => {
+            eval_executable(cmd, args, ctx);
+        }
     }
 }
 
