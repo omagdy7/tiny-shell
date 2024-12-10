@@ -5,6 +5,7 @@ use std::{
     env, fs,
     path::PathBuf,
     process::{exit, Command},
+    str::FromStr,
 };
 
 #[derive(Debug)]
@@ -23,6 +24,13 @@ struct ShellCommand<'a> {
 #[derive(Debug)]
 struct Context {
     executbles: HashMap<String, PathBuf>,
+    current_working_dir: PathBuf,
+}
+
+fn _listdir(p: &PathBuf) -> Result<Vec<PathBuf>, io::Error> {
+    fs::read_dir(p)?
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>()
 }
 
 impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
@@ -41,7 +49,7 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
     }
 }
 
-const BUILTINS: [&str; 4] = ["echo", "exit", "type", "pwd"];
+const BUILTINS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
 
 fn get_executables(paths: &[&str], ctx: &mut Context) -> io::Result<()> {
     for path in paths {
@@ -64,7 +72,7 @@ fn get_executables(paths: &[&str], ctx: &mut Context) -> io::Result<()> {
     Ok(())
 }
 
-fn eval_builtin(command: &str, args: &[&str], ctx: &Context) {
+fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
     match command {
         "exit" => {
             let args = args[0].trim_end();
@@ -89,10 +97,27 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &Context) {
                 println!("{}: not found", cmd_to_check);
             }
         }
-        "pwd" => match env::current_dir() {
-            Ok(cur_dir) => println!("{}", cur_dir.display()),
-            Err(err) => println!("ERROR: {err}"),
-        },
+        "pwd" => {
+            println!("{}", ctx.current_working_dir.display())
+        }
+        "cd" => {
+            if args.len() == 0 {
+                todo!("Should just change directory to home")
+            }
+            if args.len() > 1 {
+                println!("cd: please only provide one directory")
+            } else {
+                let path = args[0];
+                // let dirs_in_working_directory = listdir(&ctx.current_working_dir).unwrap();
+                match PathBuf::from_str(path) {
+                    Ok(path) => match fs::read_dir(&path) {
+                        Ok(_) => ctx.current_working_dir = path.clone(),
+                        Err(_) => println!("cd: {}: No such file or directory", path.display()),
+                    },
+                    Err(err) => println!("ERROR: {err}"),
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -117,7 +142,7 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) {
     }
 }
 
-fn eval(command: &str, ctx: &Context) {
+fn eval(command: &str, ctx: &mut Context) {
     use ShellCommandType::*;
     let cmd_input = command
         .split(' ')
@@ -139,6 +164,7 @@ fn main() {
     // Wait for user input
     let mut ctx = Context {
         executbles: HashMap::new(),
+        current_working_dir: env::current_dir().expect("Shouldn't fail?"),
     };
     let path = env!("PATH");
     let paths = path.split(':').collect::<Vec<&str>>();
@@ -150,6 +176,6 @@ fn main() {
         io::stdout().flush().unwrap();
         let mut command = String::new();
         stdin.read_line(&mut command).unwrap();
-        eval(&command, &ctx);
+        eval(&command, &mut ctx);
     }
 }
