@@ -50,6 +50,8 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
 }
 
 const BUILTINS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
+const PATH: &'static str = env!("PATH");
+const HOME: &'static str = env!("HOME");
 
 fn get_executables(paths: &[&str], ctx: &mut Context) -> io::Result<()> {
     for path in paths {
@@ -98,7 +100,12 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
             }
         }
         "pwd" => {
-            println!("{}", ctx.current_working_dir.display())
+            let cwd = ctx.current_working_dir.to_str().unwrap();
+            if cwd.ends_with("/") {
+                println!("{}", PathBuf::from(&cwd[0..cwd.len() - 1]).display())
+            } else {
+                println!("{}", ctx.current_working_dir.display())
+            }
         }
         "cd" => {
             if args.len() == 0 {
@@ -112,14 +119,31 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                     Ok(path) => {
                         if path.is_absolute() {
                             match fs::read_dir(&path) {
-                                Ok(_) => ctx.current_working_dir = path.clone(),
+                                Ok(_) => {
+                                    ctx.current_working_dir = path.clone();
+                                    std::env::set_current_dir(ctx.current_working_dir.clone())
+                                        .unwrap()
+                                }
                                 Err(_) => {
                                     println!("cd: {}: No such file or directory", path.display())
                                 }
                             }
                         } else {
-                            if path == PathBuf::from_str("..").unwrap() {
+                            if path == PathBuf::from_str("~/").unwrap() {
+                                if path.to_str().unwrap().len() > 1 {
+                                    ctx.current_working_dir =
+                                        PathBuf::from(HOME).join(&path.to_str().unwrap()[2..]);
+                                    std::env::set_current_dir(ctx.current_working_dir.clone())
+                                        .unwrap()
+                                } else {
+                                    ctx.current_working_dir =
+                                        PathBuf::from(HOME).join(&path.to_str().unwrap()[1..]);
+                                    std::env::set_current_dir(ctx.current_working_dir.clone())
+                                        .unwrap()
+                                }
+                            } else if path == PathBuf::from_str("..").unwrap() {
                                 ctx.current_working_dir.pop();
+                                std::env::set_current_dir(ctx.current_working_dir.clone()).unwrap()
                             } else if path.starts_with("../") {
                                 ctx.current_working_dir.pop();
                                 let mut path_without_dots = &path.to_str().unwrap()[2..];
@@ -141,7 +165,11 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                                         PathBuf::from(&total_path_str[0..total_path_str.len() - 1]);
                                 }
                                 match fs::read_dir(&total_path) {
-                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Ok(_) => {
+                                        ctx.current_working_dir = total_path.clone();
+                                        std::env::set_current_dir(ctx.current_working_dir.clone())
+                                            .unwrap()
+                                    }
                                     Err(_) => {
                                         println!(
                                             "cd: {}: No such file or directory",
@@ -153,7 +181,11 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                                 let path_without_dot = PathBuf::from(&path.to_str().unwrap()[2..]);
                                 let total_path = ctx.current_working_dir.join(path_without_dot);
                                 match fs::read_dir(&total_path) {
-                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Ok(_) => {
+                                        ctx.current_working_dir = total_path.clone();
+                                        std::env::set_current_dir(ctx.current_working_dir.clone())
+                                            .unwrap()
+                                    }
                                     Err(_) => {
                                         println!(
                                             "cd: {}: No such file or directory",
@@ -165,7 +197,11 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                                 let path_without_dot = PathBuf::from(&path.to_str().unwrap()[2..]);
                                 let total_path = ctx.current_working_dir.join(path_without_dot);
                                 match fs::read_dir(&total_path) {
-                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Ok(_) => {
+                                        ctx.current_working_dir = total_path.clone();
+                                        std::env::set_current_dir(ctx.current_working_dir.clone())
+                                            .unwrap()
+                                    }
                                     Err(_) => {
                                         println!(
                                             "cd: {}: No such file or directory",
@@ -173,18 +209,6 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                                         )
                                     }
                                 }
-                                // let dirs_in_working_directory =
-                                //     listdir(&ctx.current_working_dir).unwrap();
-                                // let dirs_in_working_directory = dirs_in_working_directory
-                                //     .iter()
-                                //     .map(|f| f.file_name().unwrap())
-                                //     .collect::<Vec<&OsStr>>();
-                                // // dbg!(&dirs_in_working_directory);
-                                // if dirs_in_working_directory.contains(&path.file_name().unwrap()) {
-                                //     ctx.current_working_dir.push(path.file_name().unwrap());
-                                // } else {
-                                //     println!("cd: {}: No such file or directory", path.display())
-                                // }
                             }
                         }
                     }
@@ -241,8 +265,7 @@ fn main() {
         executbles: HashMap::new(),
         current_working_dir: env::current_dir().expect("Shouldn't fail?"),
     };
-    let path = env!("PATH");
-    let paths = path.split(':').collect::<Vec<&str>>();
+    let paths = PATH.split(':').collect::<Vec<&str>>();
     let _ = get_executables(&paths, &mut ctx);
     // dbg!(&ctx.executbles);
     let stdin = io::stdin();
