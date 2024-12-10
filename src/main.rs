@@ -108,12 +108,87 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) {
                 println!("cd: please only provide one directory")
             } else {
                 let path = args[0];
-                // let dirs_in_working_directory = listdir(&ctx.current_working_dir).unwrap();
                 match PathBuf::from_str(path) {
-                    Ok(path) => match fs::read_dir(&path) {
-                        Ok(_) => ctx.current_working_dir = path.clone(),
-                        Err(_) => println!("cd: {}: No such file or directory", path.display()),
-                    },
+                    Ok(path) => {
+                        if path.is_absolute() {
+                            match fs::read_dir(&path) {
+                                Ok(_) => ctx.current_working_dir = path.clone(),
+                                Err(_) => {
+                                    println!("cd: {}: No such file or directory", path.display())
+                                }
+                            }
+                        } else {
+                            if path == PathBuf::from_str("..").unwrap() {
+                                ctx.current_working_dir.pop();
+                            } else if path.starts_with("../") {
+                                ctx.current_working_dir.pop();
+                                let mut path_without_dots = &path.to_str().unwrap()[2..];
+                                if path_without_dots.ends_with("/") {
+                                    path_without_dots =
+                                        &path_without_dots[..path_without_dots.len() - 1]
+                                }
+                                let mut path_without_dots = PathBuf::from(path_without_dots);
+                                while path_without_dots.starts_with("/..") {
+                                    path_without_dots =
+                                        PathBuf::from(&path_without_dots.to_str().unwrap()[3..]);
+                                    ctx.current_working_dir.pop();
+                                }
+                                let mut total_path =
+                                    ctx.current_working_dir.join(path_without_dots);
+                                let total_path_str = total_path.to_str().unwrap();
+                                if total_path_str.ends_with("/") {
+                                    total_path =
+                                        PathBuf::from(&total_path_str[0..total_path_str.len() - 1]);
+                                }
+                                match fs::read_dir(&total_path) {
+                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Err(_) => {
+                                        println!(
+                                            "cd: {}: No such file or directory",
+                                            path.display()
+                                        )
+                                    }
+                                }
+                            } else if path.starts_with("./") {
+                                let path_without_dot = PathBuf::from(&path.to_str().unwrap()[2..]);
+                                let total_path = ctx.current_working_dir.join(path_without_dot);
+                                match fs::read_dir(&total_path) {
+                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Err(_) => {
+                                        println!(
+                                            "cd: {}: No such file or directory",
+                                            path.display()
+                                        )
+                                    }
+                                }
+                            } else {
+                                let path_without_dot = PathBuf::from(&path.to_str().unwrap()[2..]);
+                                let total_path = ctx.current_working_dir.join(path_without_dot);
+                                match fs::read_dir(&total_path) {
+                                    Ok(_) => ctx.current_working_dir = total_path.clone(),
+                                    Err(_) => {
+                                        println!(
+                                            "cd: {}: No such file or directory",
+                                            path.display()
+                                        )
+                                    }
+                                }
+                                // let dirs_in_working_directory =
+                                //     listdir(&ctx.current_working_dir).unwrap();
+                                // let dirs_in_working_directory = dirs_in_working_directory
+                                //     .iter()
+                                //     .map(|f| f.file_name().unwrap())
+                                //     .collect::<Vec<&OsStr>>();
+                                // // dbg!(&dirs_in_working_directory);
+                                // if dirs_in_working_directory.contains(&path.file_name().unwrap()) {
+                                //     ctx.current_working_dir.push(path.file_name().unwrap());
+                                // } else {
+                                //     println!("cd: {}: No such file or directory", path.display())
+                                // }
+                            }
+                        }
+                    }
+
                     Err(err) => println!("ERROR: {err}"),
                 }
             }
