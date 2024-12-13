@@ -227,37 +227,32 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
     }
 }
 
-// horrible code and needs to be fixed
 fn parse_quotes(command: &str) -> Vec<String> {
-    let mut inside_quotes = false;
-    let mut total_command = vec![];
-    let mut cur = String::from("");
-    let mut i = 0;
-    let chars = command.chars().collect::<Vec<char>>();
-    let n = chars.len();
-    while i < n {
-        if chars[i] == '\'' {
-            inside_quotes = !inside_quotes
-        }
-        if chars[i] == ' ' && inside_quotes {
-            cur.push(chars[i])
-        } else if chars[i] == ' ' {
-            total_command.push(cur);
-            cur = "".to_string();
-            while chars[i] == ' ' {
-                i += 1
+    let mut inside_single_quotes = false;
+    let mut inside_double_quotes = false;
+    let mut current = String::new();
+    let mut result = Vec::new();
+
+    for c in command.chars() {
+        match c {
+            '\'' if !inside_double_quotes => inside_single_quotes = !inside_single_quotes,
+            '"' if !inside_single_quotes => inside_double_quotes = !inside_double_quotes,
+            ' ' if !inside_single_quotes && !inside_double_quotes => {
+                if !current.is_empty() {
+                    result.push(current.clone());
+                    current.clear();
+                }
             }
-            i -= 1
-        } else {
-            if chars[i] != '\'' {
-                cur.push(chars[i])
-            }
+            '\n' => {}
+            _ => current.push(c),
         }
-        i += 1
     }
-    let _ = cur.pop();
-    total_command.push(cur);
-    total_command
+
+    if !current.is_empty() {
+        result.push(current);
+    }
+
+    result
 }
 
 fn eval(command: &str, ctx: &mut Context) -> Result<()> {
