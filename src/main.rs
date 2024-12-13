@@ -10,6 +10,7 @@
 #![warn(clippy::needless_pass_by_value)] // Suggest borrowing instead of copying
 
 use anyhow::anyhow;
+use anyhow::Result;
 use std::io::{self, Write};
 use std::{
     collections::HashMap,
@@ -27,7 +28,7 @@ enum ShellCommandType {
 #[derive(Debug)]
 struct ShellCommand<'a> {
     cmd: &'a str,
-    args: &'a [&'a str],
+    args: Vec<&'a str>,
     command_type: ShellCommandType,
 }
 
@@ -43,7 +44,7 @@ fn _listdir(p: &PathBuf) -> Result<Vec<PathBuf>, io::Error> {
         .collect::<Result<Vec<_>, io::Error>>()
 }
 
-fn change_directory(ctx: &mut Context, args: &[&str]) -> Result<(), anyhow::Error> {
+fn change_directory(ctx: &mut Context, args: &[&str]) -> Result<()> {
     match args.len() {
         0 => {
             // Go to home directory when no arguments are provided
@@ -122,7 +123,14 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
         if BUILTINS.contains(&cmd) {
             command_type = ShellCommandType::Builtin;
         }
-        let args = if value.len() == 1 { &[] } else { &value[1..] };
+        let mut args = vec![];
+        for arg in value.iter().skip(1) {
+            if arg.starts_with("'") && arg.ends_with("'") {
+                args.push(&arg[1..arg.len() - 2]);
+            } else {
+                args.push(arg);
+            }
+        }
         ShellCommand {
             cmd,
             args,
@@ -135,7 +143,7 @@ const BUILTINS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
 const PATH: &'static str = env!("PATH");
 const HOME: &'static str = env!("HOME");
 
-fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<(), anyhow::Error> {
+fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<()> {
     for path in paths {
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries.filter_map(Result::ok) {
@@ -149,9 +157,10 @@ fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<(), anyhow:
     Ok(())
 }
 
-fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<(), anyhow::Error> {
+fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<()> {
     match command {
         "exit" => {
+            // TODO: handle when args are not pressent
             let args = args[0].trim_end();
             let exit_num = args.parse::<i32>()?;
             exit(exit_num)
@@ -195,7 +204,7 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<(), a
     }
 }
 
-fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<(), anyhow::Error> {
+fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
     if ctx.executables.contains_key(command) {
         let full_path_cmd = ctx.executables[command].to_str().unwrap();
         let mut cmd = Command::new(full_path_cmd);
@@ -218,20 +227,51 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<(), an
     }
 }
 
-fn eval(command: &str, ctx: &mut Context) -> Result<(), anyhow::Error> {
+// horrible code and needs to be fixed
+fn parse_quotes(command: &str) -> Vec<String> {
+    let mut inside_quotes = false;
+    let mut total_command = vec![];
+    let mut cur = String::from("");
+    let mut i = 0;
+    let chars = command.chars().collect::<Vec<char>>();
+    let n = chars.len();
+    while i < n {
+        if chars[i] == '\'' {
+            inside_quotes = !inside_quotes
+        }
+        if chars[i] == ' ' && inside_quotes {
+            cur.push(chars[i])
+        } else if chars[i] == ' ' {
+            total_command.push(cur);
+            cur = "".to_string();
+            while chars[i] == ' ' {
+                i += 1
+            }
+            i -= 1
+        } else {
+            if chars[i] != '\'' {
+                cur.push(chars[i])
+            }
+        }
+        i += 1
+    }
+    let _ = cur.pop();
+    total_command.push(cur);
+    total_command
+}
+
+fn eval(command: &str, ctx: &mut Context) -> Result<()> {
     use ShellCommandType::*;
-    let cmd_input = command
-        .split(' ')
-        .map(|cmd| cmd.trim())
-        .collect::<Vec<&str>>();
+    let cmd_input = parse_quotes(command);
+    let cmd_input = cmd_input.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
     let shell_cmd = ShellCommand::from(cmd_input.as_slice());
     let (cmd, args) = (shell_cmd.cmd, shell_cmd.args);
     match shell_cmd.command_type {
         Builtin => {
-            eval_builtin(cmd, args, ctx)?;
+            eval_builtin(cmd, &args, ctx)?;
         }
         Executable => {
-            eval_executable(cmd, args, ctx)?;
+            eval_executable(cmd, &args, ctx)?;
         }
     }
     Ok(())
@@ -245,7 +285,6 @@ fn main() {
     };
     let paths = PATH.split(':').collect::<Vec<&str>>();
     let _ = populate_executables(&paths, &mut ctx);
-    // dbg!(&ctx.executbles);
     let stdin = io::stdin();
     loop {
         print!("$ ");
