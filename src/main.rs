@@ -140,8 +140,8 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
 }
 
 const BUILTINS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
-const PATH: &'static str = env!("PATH");
 const HOME: &'static str = env!("HOME");
+const PATH: &'static str = env!("PATH");
 
 fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<()> {
     for path in paths {
@@ -218,7 +218,7 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
         } else {
             // If the command failed, print the error
             let stderr = String::from_utf8(output.stderr)?;
-            eprintln!("Error:\n{}", stderr);
+            eprintln!("Error: {}", stderr);
             Ok(())
         }
     } else {
@@ -232,9 +232,16 @@ fn parse_quotes(command: &str) -> Vec<String> {
     let mut inside_double_quotes = false;
     let mut current = String::new();
     let mut result = Vec::new();
+    let mut chars = command.chars().peekable();
 
-    for c in command.chars() {
+    while let Some(c) = chars.next() {
         match c {
+            '\\' if !(inside_double_quotes || inside_single_quotes) => {
+                if let Some(&next_char) = chars.peek() {
+                    current.push(next_char);
+                    let _ = chars.next();
+                }
+            }
             '\'' if !inside_double_quotes => inside_single_quotes = !inside_single_quotes,
             '"' if !inside_single_quotes => inside_double_quotes = !inside_double_quotes,
             ' ' if !inside_single_quotes && !inside_double_quotes => {
@@ -278,6 +285,7 @@ fn main() {
         executables: HashMap::new(),
         current_working_dir: env::current_dir().expect("Shouldn't fail?"),
     };
+
     let paths = PATH.split(':').collect::<Vec<&str>>();
     let _ = populate_executables(&paths, &mut ctx);
     let stdin = io::stdin();
