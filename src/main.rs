@@ -217,10 +217,9 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
             Ok(())
         }
     } else {
-        // if command == "my_exe" {
-        //     let mut cloned_ctx = ctx.clone();
-        //     eval_builtin("type", &[command], &mut cloned_ctx)?;
-        // }
+        // TODO: Instead of repoulating the executables at every command instead when a comand
+        // isn't found try to repopulate the exectables and try again if it fails then the
+        // exectable can't indeed be found
         println!("{}: command not found", command);
         Ok(())
     }
@@ -289,7 +288,6 @@ fn eval(command: &str, ctx: &mut Context) -> Result<()> {
 }
 
 fn main() {
-    // Wait for user input
     let mut ctx = Context {
         executables: HashMap::new(),
         current_working_dir: env::current_dir().expect("Shouldn't fail?"),
