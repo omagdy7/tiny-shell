@@ -32,16 +32,33 @@ struct ShellCommand<'a> {
     command_type: ShellCommandType,
 }
 
+impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
+    fn from(value: &'a [&'a str]) -> Self {
+        let cmd = &value[0];
+        let mut command_type = ShellCommandType::Executable;
+        if BUILTINS.contains(&cmd) {
+            command_type = ShellCommandType::Builtin;
+        }
+        let mut args = vec![];
+        for arg in value.iter().skip(1) {
+            if arg.starts_with("'") && arg.ends_with("'") {
+                args.push(&arg[1..arg.len() - 2]);
+            } else {
+                args.push(arg);
+            }
+        }
+        ShellCommand {
+            cmd,
+            args,
+            command_type,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Context {
     executables: HashMap<String, PathBuf>,
     current_working_dir: PathBuf,
-}
-
-fn _listdir(p: &PathBuf) -> Result<Vec<PathBuf>, io::Error> {
-    fs::read_dir(p)?
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>()
 }
 
 fn change_directory(ctx: &mut Context, args: &[&str]) -> Result<()> {
@@ -112,29 +129,6 @@ fn resolve_path(ctx: &Context, path: &str) -> Result<PathBuf, anyhow::Error> {
         Ok(resolved) => Ok(resolved),
         Err(_) => {
             return Err(anyhow!("cd: {}: No such file or directory", path));
-        }
-    }
-}
-
-impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
-    fn from(value: &'a [&'a str]) -> Self {
-        let cmd = &value[0];
-        let mut command_type = ShellCommandType::Executable;
-        if BUILTINS.contains(&cmd) {
-            command_type = ShellCommandType::Builtin;
-        }
-        let mut args = vec![];
-        for arg in value.iter().skip(1) {
-            if arg.starts_with("'") && arg.ends_with("'") {
-                args.push(&arg[1..arg.len() - 2]);
-            } else {
-                args.push(arg);
-            }
-        }
-        ShellCommand {
-            cmd,
-            args,
-            command_type,
         }
     }
 }
@@ -230,7 +224,7 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
     }
 }
 
-fn parse_quotes(command: &str) -> Vec<String> {
+fn parse_command(command: &str) -> Vec<String> {
     let mut inside_single_quotes = false;
     let mut inside_double_quotes = false;
     let mut current = String::new();
@@ -277,7 +271,7 @@ fn parse_quotes(command: &str) -> Vec<String> {
 
 fn eval(command: &str, ctx: &mut Context) -> Result<()> {
     use ShellCommandType::*;
-    let cmd_input = parse_quotes(command);
+    let cmd_input = parse_command(command);
     let cmd_input = cmd_input.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
     let shell_cmd = ShellCommand::from(cmd_input.as_slice());
     let (cmd, args) = (shell_cmd.cmd, shell_cmd.args);
