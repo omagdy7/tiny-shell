@@ -239,7 +239,17 @@ fn parse_quotes(command: &str) -> Vec<String> {
 
     while let Some(c) = chars.next() {
         match c {
-            '\\' if !(inside_double_quotes || inside_single_quotes) => {
+            '\\' if inside_double_quotes => {
+                if let Some(&next_char) = chars.peek() {
+                    if ['\\', '$', '"'].contains(&next_char) {
+                        current.push(next_char);
+                        let _ = chars.next();
+                    } else {
+                        current.push(c)
+                    }
+                }
+            }
+            '\\' if !inside_single_quotes => {
                 if let Some(&next_char) = chars.peek() {
                     current.push(next_char);
                     let _ = chars.next();
