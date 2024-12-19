@@ -52,18 +52,13 @@ This repository contains my implementation of a shell as part of the [CodeCrafte
 
 1. Clone this repository:
    ```bash
-   git clone [repository-url]
-   cd [repository-folder]
+   git clone https://github.com/omagdy7/tiny-shell
+   cd tiny-shell
    ```
 
 2. Build and run the project:
    ```bash
    cargo run --release
-   ```
-
-3. Run the shell:
-   ```bash
-   ./target/release/shell
    ```
 
 ---
