@@ -32,7 +32,7 @@ struct ShellCommand<'a> {
     command_type: ShellCommandType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Context {
     executables: HashMap<String, PathBuf>,
     current_working_dir: PathBuf,
@@ -141,7 +141,6 @@ impl<'a> From<&'a [&'a str]> for ShellCommand<'a> {
 
 const BUILTINS: [&str; 5] = ["echo", "exit", "type", "pwd", "cd"];
 const HOME: &'static str = env!("HOME");
-const PATH: &'static str = env!("PATH");
 
 fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<()> {
     for path in paths {
@@ -222,6 +221,10 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
             Ok(())
         }
     } else {
+        // if command == "my_exe" {
+        //     let mut cloned_ctx = ctx.clone();
+        //     eval_builtin("type", &[command], &mut cloned_ctx)?;
+        // }
         println!("{}: command not found", command);
         Ok(())
     }
@@ -286,14 +289,17 @@ fn main() {
         current_working_dir: env::current_dir().expect("Shouldn't fail?"),
     };
 
-    let paths = PATH.split(':').collect::<Vec<&str>>();
+    let path = std::env::var("PATH").unwrap();
+    let paths = path.split(':').collect::<Vec<&str>>();
     let _ = populate_executables(&paths, &mut ctx);
+
     let stdin = io::stdin();
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
         let mut command = String::new();
         let _ = stdin.read_line(&mut command).unwrap();
+        let _ = populate_executables(&paths, &mut ctx);
         if let Err(e) = eval(&command, &mut ctx) {
             eprintln!("{:?}", e);
         }
