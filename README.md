@@ -1,33 +1,77 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/6dee71ca-9082-4879-8756-7ad2b59b7dbb)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# Shell Implementation in Rust
 
-This is a starting point for Rust solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+This repository contains my implementation of a shell as part of the [CodeCrafters.io Shell Challenge](https://codecrafters.io). Built entirely in Rust, this shell replicates basic Unix shell functionalities.
 
-_Add a description of your course here_
+---
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## Current Features
 
-# Passing the first stage
+### Built-in Commands
+- **`cd`**: Change the current working directory.
+- **`pwd`**: Display the current working directory.
+- **`echo`**: Print arguments to the standard output.
+- **`type`**: Display whether a command is a built-in or an external executable.
+- **`exit`**: Terminate the shell.
 
-The entry point for your `shell` implementation is in `src/main.rs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+### External Command Execution
+- Seamlessly runs external binaries available in the system PATH.
+- Displays standard output and standard error from commands.
 
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
-```
+### Robust Path Resolution
+- Handles relative paths, absolute paths, and home directory shortcuts (`~`).
+- Ensures proper context management for path changes and directory traversal.
 
-Time to move on to the next stage!
+### Context Management
+- Maintains state for executables and the current working directory.
+- Dynamically updates the list of available executables from the system PATH.
 
-# Stage 2 & beyond
+### Command Parsing
+- Supports handling single and double-quoted strings.
+- Escapes special characters in commands where appropriate.
 
-Note: This section is for stages 2 and beyond.
+---
 
-1. Ensure you have `cargo (1.70)` installed locally
-1. Run `./your_shell.sh` to run your program, which is implemented in
-   `src/main.rs`. This command compiles your Rust project, so it might be slow
-   the first time you run it. Subsequent runs will be fast.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## Next Steps (TODOs)
+
+### Enhanced Shell Features
+- [ ] Add support for I/O redirection (e.g., `>`, `<`, `>>`).
+- [ ] Implement piping (e.g., `command1 | command2`).
+- [ ] Add tab-completion for commands and file paths.
+- [ ] Support environment variable management (e.g., `export`, `unset`).
+
+### Usability Improvements
+- [ ] Add a history feature to navigate previous commands.
+
+### Testing and Optimization
+- [ ] Add unit and integration tests for core functionalities.
+- [ ] Optimize performance for large or complex commands.
+
+---
+
+## Getting Started
+
+1. Clone this repository:
+   ```bash
+   git clone [repository-url]
+   cd [repository-folder]
+   ```
+
+2. Build and run the project:
+   ```bash
+   cargo run --release
+   ```
+
+3. Run the shell:
+   ```bash
+   ./target/release/shell
+   ```
+
+---
+
+## Acknowledgments
+
+Special thanks to [CodeCrafters.io](https://codecrafters.io) for designing this challenge and providing an engaging platform for learning system-level programming.
+
+
+## Resources
+- https://www.gnu.org/software/bash/manual/bash.html
