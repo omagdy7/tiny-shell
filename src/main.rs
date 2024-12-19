@@ -88,7 +88,7 @@ fn change_directory(ctx: &mut Context, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn resolve_path(ctx: &Context, path: &str) -> Result<PathBuf, anyhow::Error> {
+fn resolve_path(ctx: &Context, path: &str) -> Result<PathBuf> {
     let current_dir = &ctx.current_working_dir;
 
     // Handle various path scenarios
