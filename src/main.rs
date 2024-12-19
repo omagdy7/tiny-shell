@@ -153,7 +153,9 @@ fn populate_executables(paths: &[&str], ctx: &mut Context) -> Result<()> {
 fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<()> {
     match command {
         "exit" => {
-            // TODO: handle when args are not pressent
+            if args.len() == 0 {
+                exit(0)
+            }
             let args = args[0].trim_end();
             let exit_num = args.parse::<i32>()?;
             exit(exit_num)
