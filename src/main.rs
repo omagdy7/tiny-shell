@@ -296,14 +296,19 @@ fn main() {
     let path = std::env::var("PATH").unwrap();
     let paths = path.split(':').collect::<Vec<&str>>();
     let _ = populate_executables(&paths, &mut ctx);
-
     let stdin = io::stdin();
+
+    let mut is_first_command = true;
+
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
         let mut command = String::new();
         let _ = stdin.read_line(&mut command).unwrap();
-        let _ = populate_executables(&paths, &mut ctx);
+        if is_first_command {
+            let _ = populate_executables(&paths, &mut ctx);
+            is_first_command = false;
+        }
         if let Err(e) = eval(&command, &mut ctx) {
             eprintln!("{:?}", e);
         }
