@@ -11,7 +11,9 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
+use std::fs::File;
 use std::io::{self, Write};
+use std::path::Path;
 use std::{
     collections::HashMap,
     env, fs,
@@ -161,8 +163,23 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<()> {
             exit(exit_num)
         }
         "echo" => {
-            let line_to_print = args.join(" ").trim_end().to_owned();
-            println!("{}", line_to_print);
+            let redirection_pos = args.iter().position(|&x| x == "1>" || x == ">");
+            let mut cmd_args = args;
+            let mut redirection_path = String::from("");
+            if redirection_pos.is_some() {
+                cmd_args = &args[0..redirection_pos.unwrap()];
+                redirection_path = args.last().unwrap().to_string();
+            }
+
+            if redirection_pos.is_some() {
+                let mut file_content = cmd_args.join(" ");
+                file_content.push('\n');
+                let mut file = File::create(redirection_path)?;
+                file.write_all(file_content.as_bytes())?
+            } else {
+                let line_to_print = cmd_args.join(" ").trim_end().to_owned();
+                println!("{}", line_to_print);
+            }
             Ok(())
         }
         "type" => {
@@ -203,17 +220,36 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
     if ctx.executables.contains_key(command) {
         let full_path_cmd = ctx.executables[command].to_str().unwrap();
         let mut cmd = Command::new(full_path_cmd);
-        let output = cmd.args(args).output().unwrap();
+        let redirection_pos = args.iter().position(|&x| x == "1>" || x == ">");
+        let mut cmd_args = args;
+        let mut redirection_path = String::from("");
+        if redirection_pos.is_some() {
+            cmd_args = &args[0..redirection_pos.unwrap()];
+            redirection_path = args.last().unwrap().to_string();
+        }
+        let output = cmd.args(cmd_args).output().unwrap();
         // Check if the command was successful
         if output.status.success() {
-            // Convert the output to a string and print it
-            let stdout = String::from_utf8(output.stdout)?;
-            print!("{}", stdout);
+            if redirection_pos.is_some() {
+                let mut file = File::create(redirection_path)?;
+                file.write_all(&output.stdout)?;
+            } else {
+                // Convert the output to a string and print it
+                let stdout = String::from_utf8(output.stdout)?;
+                print!("{}", stdout);
+            }
             Ok(())
         } else {
+            if redirection_pos.is_some() {
+                let mut file = File::create(redirection_path)?;
+                file.write_all(&output.stdout)?;
+            }
             // If the command failed, print the error
             let stderr = String::from_utf8(output.stderr)?;
-            eprintln!("Error: {}", stderr);
+            let (cmd, err) = stderr.split_once(':').unwrap();
+            let cmd = Path::new(cmd).file_name().unwrap().to_str().unwrap();
+            let err = err.trim_end();
+            eprintln!("{}:{}", cmd, err);
             Ok(())
         }
     } else {
@@ -250,6 +286,18 @@ fn parse_command(command: &str) -> Vec<String> {
                     let _ = chars.next();
                 }
             }
+            // '1' if !(inside_double_quotes && inside_single_quotes) => {
+            //     if let Some(&next_char) = chars.peek() {
+            //         if next_char == '>' {
+            //             current.push('1');
+            //             current.push('>');
+            //             let _ = chars.next();
+            //         }
+            //     }
+            // }
+            // '>' if !(inside_double_quotes && inside_single_quotes) => {
+            //     current.push('>');
+            // }
             '\'' if !inside_double_quotes => inside_single_quotes = !inside_single_quotes,
             '"' if !inside_single_quotes => inside_double_quotes = !inside_double_quotes,
             ' ' if !inside_single_quotes && !inside_double_quotes => {
@@ -301,6 +349,14 @@ fn main() {
     let mut is_first_command = true;
 
     loop {
+        // print!(
+        //     "[{}]$ ",
+        //     ctx.current_working_dir
+        //         .file_name()
+        //         .unwrap()
+        //         .to_str()
+        //         .unwrap()
+        // );
         print!("$ ");
         io::stdout().flush().unwrap();
         let mut command = String::new();
