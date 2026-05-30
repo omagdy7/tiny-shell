@@ -163,18 +163,22 @@ fn eval_builtin(command: &str, args: &[&str], ctx: &mut Context) -> Result<()> {
             exit(exit_num)
         }
         "echo" => {
-            let redirection_pos = args.iter().position(|&x| x == "1>" || x == ">");
+            let redirection_pos = args
+                .iter()
+                .position(|&x| x == "1>" || x == ">" || x == "2>");
             let mut cmd_args = args;
             let mut redirection_path = String::from("");
             if redirection_pos.is_some() {
                 cmd_args = &args[0..redirection_pos.unwrap()];
                 redirection_path = args.last().unwrap().to_string();
             }
+            let mut file = File::create(redirection_path)?;
 
-            if redirection_pos.is_some() {
+            if redirection_pos.is_some_and(|x| {
+                !['2'].contains(&args[x].chars().rev().last().expect("Shouldn't panic"))
+            }) {
                 let mut file_content = cmd_args.join(" ");
                 file_content.push('\n');
-                let mut file = File::create(redirection_path)?;
                 file.write_all(file_content.as_bytes())?
             } else {
                 let line_to_print = cmd_args.join(" ").trim_end().to_owned();
@@ -220,7 +224,9 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
     if ctx.executables.contains_key(command) {
         let full_path_cmd = ctx.executables[command].to_str().unwrap();
         let mut cmd = Command::new(full_path_cmd);
-        let redirection_pos = args.iter().position(|&x| x == "1>" || x == ">");
+        let redirection_pos = args
+            .iter()
+            .position(|&x| x == "1>" || x == ">" || x == "2>");
         let mut cmd_args = args;
         let mut redirection_path = String::from("");
         if redirection_pos.is_some() {
@@ -230,7 +236,9 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
         let output = cmd.args(cmd_args).output().unwrap();
         // Check if the command was successful
         if output.status.success() {
-            if redirection_pos.is_some() {
+            if redirection_pos
+                .is_some_and(|x| ['1', '>'].contains(&cmd_args[x].chars().rev().last().unwrap()))
+            {
                 let mut file = File::create(redirection_path)?;
                 file.write_all(&output.stdout)?;
             } else {
@@ -241,15 +249,22 @@ fn eval_executable(command: &str, args: &[&str], ctx: &Context) -> Result<()> {
             Ok(())
         } else {
             if redirection_pos.is_some() {
-                let mut file = File::create(redirection_path)?;
+                let mut file = File::create(redirection_path.clone())?;
                 file.write_all(&output.stdout)?;
             }
             // If the command failed, print the error
-            let stderr = String::from_utf8(output.stderr)?;
-            let (cmd, err) = stderr.split_once(':').unwrap();
-            let cmd = Path::new(cmd).file_name().unwrap().to_str().unwrap();
-            let err = err.trim_end();
-            eprintln!("{}:{}", cmd, err);
+            if redirection_pos.is_some_and(|x| {
+                ['2'].contains(&args[x].chars().rev().last().expect("Shouldn't panic"))
+            }) {
+                let mut file = File::create(redirection_path)?;
+                file.write_all(&output.stderr)?;
+            } else {
+                let stderr = String::from_utf8(output.stderr)?;
+                let (cmd, err) = stderr.split_once(':').unwrap();
+                let cmd = Path::new(cmd).file_name().unwrap().to_str().unwrap();
+                let err = err.trim_end();
+                eprintln!("{}:{}", cmd, err);
+            }
             Ok(())
         }
     } else {
